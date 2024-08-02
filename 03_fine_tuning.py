@@ -26,7 +26,8 @@
 import os
 from tensorboard import notebook
 
-logdir = "/databricks/driver/logdir/sdxl/" # Write event log to the driver node
+# logdir = "/databricks/driver/logdir/sdxl/" # Write event log to the driver node
+logdir = "/dbfs/tmp/logdir/sdxl/" # Write event log to DBFS
 notebook.start("--logdir {} --reload_multifile True".format(logdir))
 
 # COMMAND ----------
@@ -93,7 +94,41 @@ _ = spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{theme}.adaptor")
 
 # COMMAND ----------
 
-# MAGIC %sh ls -ltr $OUTPUT_DIR
+from pyspark.ml.torch.distributor import TorchDistributor
+distributor = TorchDistributor(
+    num_processes=4,
+    local_mode=False,
+    use_gpu=True)
+
+distributor.run(
+  'personalized_image_generation/train_dreambooth_lora_sdxl.py', 
+  '--pretrained_model_name_or_path=stabilityai/stable-diffusion-xl-base-1.0',
+  '--pretrained_vae_model_name_or_path=madebyollin/sdxl-vae-fp16-fix',
+  f'--dataset_name={os.environ["DATASET_NAME"]}',
+  '--caption_column=caption',
+  '--instance_prompt=',
+  f'--output_dir={os.environ["OUTPUT_DIR"]}',
+  '--resolution=1024',
+  '--train_batch_size=1',
+  '--gradient_accumulation_steps=3',
+  '--gradient_checkpointing',
+  '--learning_rate=1e-4',
+  '--snr_gamma=5.0',
+  '--lr_scheduler=constant',
+  '--lr_warmup_steps=0',
+  '--use_8bit_adam',
+  '--max_train_steps=100',
+  # '--num_train_epochs=1',
+  '--checkpointing_steps=717',
+  '--seed=0',
+  '--report_to=tensorboard',
+  f'--logging_dir={os.environ["LOGDIR"]}',
+  '--mixed_precision=fp16'
+)
+
+# COMMAND ----------
+
+# MAGIC %sh ls -ltrh $OUTPUT_DIR
 
 # COMMAND ----------
 
@@ -201,6 +236,9 @@ import mlflow
 from mlflow.models.signature import ModelSignature
 from mlflow.types import DataType, Schema, ColSpec, TensorSpec
 import transformers, bitsandbytes, accelerate, deepspeed, diffusers
+
+experiment_name = f"/Workspace/Users/{dbutils.notebook.entry_point.getDbutils().notebook().getContext().userName().get()}/experiment"
+mlflow.set_experiment(experiment_name)
 
 mlflow.set_registry_uri("databricks-uc")
 

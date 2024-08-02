@@ -26,7 +26,7 @@ import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
 import transformers
-from accelerate import Accelerator
+from accelerate import Accelerator, DeepSpeedPlugin
 from accelerate.logging import get_logger
 from accelerate.utils import (
     DistributedDataParallelKwargs,
@@ -932,6 +932,13 @@ def main(args):
         project_dir=args.output_dir, logging_dir=logging_dir
     )
     kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+    deepspeed_plugin = DeepSpeedPlugin(
+        zero_stage=2, 
+        zero3_init_flag=False,
+        offload_param_device=None,
+        offload_optimizer_device=None,
+        gradient_accumulation_steps=1,
+    ) 
     accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         mixed_precision=args.mixed_precision,
