@@ -945,6 +945,7 @@ def main(args):
         log_with=args.report_to,
         project_config=accelerator_project_config,
         kwargs_handlers=[kwargs],
+        deepspeed_plugin=deepspeed_plugin,
     )
 
     if args.report_to == "wandb":
